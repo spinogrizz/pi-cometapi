@@ -1,6 +1,6 @@
 # pi-cometapi
 
-pi-cometapi is a single-file TypeScript extension for the pi coding agent. It registers CometAPI (https://api.cometapi.com) as one provider, discovers the full model catalog at session start, and routes Claude models over the Anthropic-native protocol while every other model uses the OpenAI-compatible protocol. The extension is one file, `cometapi.ts`, about 100 lines.
+pi-cometapi is a single-file TypeScript extension for the pi coding agent. It registers CometAPI (https://api.cometapi.com) as one provider, discovers the full model catalog at session start, and routes Claude models over the Anthropic-native protocol and Gemini 4+ models over the Google-native protocol, while other models use the OpenAI-compatible protocol. The extension is one file, `cometapi.ts`, about 100 lines.
 
 ## What it fixes
 
@@ -14,7 +14,9 @@ These problems were reproduced with pi-custom-providers 0.4.3 and pi 1.6.0 when 
 
 **Claude adaptive thinking.** pi's `compat.forceAdaptiveThinking` flag is read only by the anthropic-messages client; under openai-completions it has no effect. This extension routes every model id that starts with `claude` to anthropic-messages with baseUrl `https://api.cometapi.com` (no `/v1`, because the Anthropic SDK appends `/v1/messages` itself) and sets `forceAdaptiveThinking`. Known Claude ids take official metadata (cost, 1M context, 128K output, thinking levels) from pi's built-in Anthropic catalog, and unknown `claude` ids get conservative defaults of 200K context, 64K output, with adaptive thinking enabled.
 
-**Mixed protocols under one provider.** Claude models use `/v1/messages`, so adaptive thinking works, and all other models use `/v1/chat/completions`.
+**Mixed protocols under one provider.** Claude models use `/v1/messages`, so adaptive thinking works. Gemini 4 and newer models use CometAPI's Google-native `/v1beta` surface, so function calling works. All other models use `/v1/chat/completions`.
+
+**Gemini tool calling.** CometAPI's OpenAI-compatible endpoint does not deliver the tool list to Gemini models: the model answers as if no tools exist. This extension routes Gemini 4 and newer ids through CometAPI's documented Google-native API (`google-generative-ai`, baseUrl `https://api.cometapi.com/v1beta`), where function calling is supported. Older Gemini ids stay on the OpenAI-compatible route.
 
 ## Requirements
 
@@ -59,6 +61,6 @@ The very first pi invocation right after startup can run before the asynchronous
 
 The catalog is not persisted yet. It is fetched at each session start, and the last-good cache lives in memory only.
 
-Gemini-specific quirks are not addressed yet and are planned as future work.
+Gemini ids older than 4.x remain on the OpenAI-compatible route, where CometAPI may not deliver tools.
 
 The endpoints are hardcoded for CometAPI. This is a focused extension, not a generic relay framework.
