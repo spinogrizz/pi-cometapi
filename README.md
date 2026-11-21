@@ -36,4 +36,4 @@ The first command should list hundreds of models. The last one must return a rea
 
 ## Caveat
 
-The first pi invocation right after start may need a retry while the catalog loads. CometAPI's Gemini relay occasionally returns a transient error or stalls, and a retry succeeds.
+The catalog is cached after the first successful fetch and restored instantly on later starts. CometAPI's Gemini relay occasionally returns a transient error or stalls, and a retry succeeds.
