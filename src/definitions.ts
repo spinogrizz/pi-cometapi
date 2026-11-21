@@ -1,20 +1,11 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { RefreshModelsContext } from "@earendil-works/pi-ai";
 import { getBuiltinModels } from "@earendil-works/pi-ai/providers/all";
-
-const MODELS_URL = "https://api.cometapi.com/v1/models";
-// The Anthropic SDK appends /v1/messages itself, so the Claude route must NOT include /v1.
-const ANTHROPIC_BASE_URL = "https://api.cometapi.com";
-const FETCH_TIMEOUT_MS = 15_000;
+import { ANTHROPIC_BASE_URL, GOOGLE_BASE_URL } from "./config.ts";
 
 // Official Anthropic catalog (cost, context limits, thinking map, compat) reused as-is.
 const OFFICIAL = new Map(
   getBuiltinModels("anthropic").map((model) => [model.id, model as (typeof model)]),
 );
 
-// CometAPI proxies Google's native Gemini surface. The pi google client hardcodes
-// apiVersion "" whenever a baseUrl is set, so the version must live in the path.
-const GOOGLE_BASE_URL = "https://api.cometapi.com/v1beta";
 const GOOGLE_OFFICIAL = new Map(
   getBuiltinModels("google").map((model) => [model.id, model as (typeof model)]),
 );
@@ -38,9 +29,9 @@ const UNKNOWN_CLAUDE = {
   } as const,
 };
 
-type Definition = Record<string, unknown> & { id: string };
+export type Definition = Record<string, unknown> & { id: string };
 
-function definitionFor(id: string): Definition {
+export function definitionFor(id: string): Definition {
   if (id.startsWith("claude")) {
     const official: any = OFFICIAL.get(id);
     return {
@@ -93,45 +84,4 @@ function definitionFor(id: string): Definition {
     contextWindow: 128_000,
     maxTokens: 4_096,
   };
-}
-
-// Last-good catalog: a failed refresh must never publish [], which the composer
-// treats as a valid (empty) model list and would wipe the provider.
-let lastGood: Definition[] = [];
-
-async function refreshModels(context: RefreshModelsContext): Promise<Definition[]> {
-  try {
-    const apiKey = context.credential?.type === "api_key" ? context.credential.key : undefined;
-    if (!apiKey) throw new Error("no CometAPI credential configured");
-    const response = await fetch(MODELS_URL, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      signal: AbortSignal.any([context.signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]),
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    const payload: any = await response.json();
-    const ids: string[] = Array.isArray(payload?.data)
-      ? payload.data.flatMap((entry: any) =>
-        entry && typeof entry.id === "string" && entry.id.length > 0 ? [entry.id] : [])
-      : [];
-    if (ids.length === 0) throw new Error("model catalog returned no models");
-    const models = ids.map(definitionFor);
-    lastGood = models;
-    return models;
-  } catch (error) {
-    if (lastGood.length > 0 && !context.signal.aborted) {
-      console.warn(`[cometapi] refresh failed (${error instanceof Error ? error.message : error}); keeping last-good catalog`);
-      return lastGood;
-    }
-    // First-load failure: throwing keeps the previous snapshot untouched instead
-    // of publishing an empty catalog; pi reports it in the refresh result errors.
-    throw error;
-  }
-}
-
-export default function (pi: ExtensionAPI) {
-  pi.registerProvider("CometAPI", {
-    baseUrl: "https://api.cometapi.com/v1",
-    api: "openai-completions",
-    refreshModels,
-  });
 }
