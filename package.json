@@ -1,7 +1,7 @@
 {
   "name": "pi-cometapi",
   "version": "1.0.0",
-  "description": "CometAPI provider for pi: auto-discovered catalog with per-model protocol routing (Claude via Anthropic-native, Gemini 4+ via Google-native).",
+  "description": "CometAPI provider for pi: auto-discovered catalog with per-model protocol routing (Claude via Anthropic-native, Gemini via Google-native).",
   "type": "module",
   "pi": { "extensions": ["./index.ts"] }
 }

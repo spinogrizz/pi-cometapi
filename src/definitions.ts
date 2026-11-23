@@ -9,16 +9,12 @@ const OFFICIAL = new Map(
 const GOOGLE_OFFICIAL = new Map(
   getBuiltinModels("google").map((model) => [model.id, model as (typeof model)]),
 );
-// Carbon accepts only LOW/MEDIUM/HIGH; null mappings make pi clamp instead of
-// emitting MINIMAL or thinking_budget, both of which return HTTP 400.
+// CometAPI's Google surface rejects MINIMAL and unsupported thinking_budget
+// values with HTTP 400 (confirmed on Carbon); null mappings make pi clamp
+// instead of emitting them, applied conservatively to all gemini ids.
 const GEMINI_THINKING = {
   off: null, minimal: null, low: "low", medium: "medium", high: "high", xhigh: null, max: null,
 } as const;
-// pi uses discrete thinkingLevel exactly for ids matching this pattern; older
-// gemini ids use thinkingBudget, which this string map does not describe, so they
-// stay on the OpenAI-compatible route.
-const GEMINI_LEVEL_ID = /gemini-(?:[4-9]|[1-9]\d)/;
-
 // Unknown claude-* ids still route via anthropic-messages; CometAPI relays Anthropic
 // models on that endpoint, so we guess conservatively rather than mis-label limits.
 const UNKNOWN_CLAUDE = {
@@ -54,9 +50,10 @@ export function definitionFor(id: string): Definition {
         : { forceAdaptiveThinking: true },
     };
   }
-  // Gemini 4+ goes through CometAPI's Google-native surface: the OpenAI-compat
-  // route silently drops tools for gemini ids. The google client ignores compat.
-  if (GEMINI_LEVEL_ID.test(id)) {
+  // All gemini ids go through CometAPI's Google-native surface: the OpenAI-compat
+  // route silently drops tools for gemini ids. pi picks thinkingLevel vs
+  // thinkingBudget per id itself. The google client ignores compat.
+  if (id.startsWith("gemini")) {
     const official: any = GOOGLE_OFFICIAL.get(id);
     return {
       id,
